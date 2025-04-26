@@ -32,29 +32,48 @@ const broadcastNotification = async (req, res) => {
   const { title, description, imgUrl } = req.body;
   try {
     const users = await DeviceTokens.find().select("device_token -_id");
-    const deviceTokens = users.filter((user) => user.device_token).map((user) => user.device_token);
+    const deviceTokens = users
+      .filter((user) => user.device_token)
+      .map((user) => user.device_token);
 
-    const response = await admin.messaging().sendEachForMulticast({
-      tokens: deviceTokens,
-      data: {
-        title: title,
-        description: description,
-        imageUrl: imgUrl,
-      },
-    });
+    console.log(`Total device tokens: ${deviceTokens.length}`);
+
+    const chunkSize = 500; // 🔥 Max tokens per FCM batch
+    const chunks = [];
+
+    for (let i = 0; i < deviceTokens.length; i += chunkSize) {
+      chunks.push(deviceTokens.slice(i, i + chunkSize));
+    }
+
+    const responses = [];
+
+    for (const chunk of chunks) {
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        data: {
+          title,
+          description,
+          imageUrl: imgUrl,
+        },
+      });
+      responses.push(response);
+    }
 
     res.status(200).json({
       success: true,
-      message: "Notification Broadcasted sent successfully",
-      response: response,
+      message: "Notification broadcast sent successfully",
+      totalBatches: chunks.length,
+      responses: responses,
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({
       success: false,
-      message: "Error in sending broadcast notification" + error.message,
+      message: "Error in sending broadcast notification: " + error.message,
     });
   }
 };
+
 
 const registerToken = async (req, res) => {
   try {
