@@ -4,8 +4,9 @@ import DeviceTokens from "../model/DeviceToken.js";
 const sendNotification = async (req, res) => {
   const { token, title, description, imgUrl } = req.body;
   try {
+    console.log(req.body)
     const response = await admin.messaging().send({
-      tokens: token,
+      token: token,
       data: {
         title: title,
         description: description,
@@ -19,6 +20,7 @@ const sendNotification = async (req, res) => {
       response: response,
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({
       success: false,
       message: "Error in sending notification" + error.message,
