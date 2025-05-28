@@ -13,7 +13,7 @@ const sendNotification = async (req, res) => {
         imageUrl: imgUrl,
       },
     });
-
+    console.log("Response: ", response);
     res.status(200).json({
       success: true,
       message: "Notification sent successfully",
@@ -38,7 +38,7 @@ const broadcastNotification = async (req, res) => {
 
     console.log(`Total device tokens: ${deviceTokens.length}`);
 
-    const chunkSize = 500; // 🔥 Max tokens per FCM batch
+    const chunkSize = 100; // 🔥 Max tokens per FCM batch
     const chunks = [];
 
     for (let i = 0; i < deviceTokens.length; i += chunkSize) {
@@ -46,17 +46,24 @@ const broadcastNotification = async (req, res) => {
     }
 
     const responses = [];
-
-    for (const chunk of chunks) {
-      const response = await admin.messaging().sendEachForMulticast({
-        tokens: chunk,
-        data: {
-          title,
-          description,
-          imageUrl: imgUrl,
-        },
-      });
-      responses.push(response);
+    console.log(`Total chunks: ${chunks.length}`);
+    for (let i = 0; i < chunks.length; i++) {
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens: [...chunks[i]],
+          data: {
+            title,
+            description,
+            imageUrl: imgUrl,
+          },
+        });
+        console.log({successCount: response.successCount, failureCount: response.failureCount})
+        responses.push(response);
+        setTimeout(() => {
+          console.log("waiting 1 second") 
+        },1000)
+        // responses.push({successCount: response.successCount, failureCount: response.failureCount});
+        // console.log(chunk)
+      
     }
 
     res.status(200).json({
@@ -77,7 +84,14 @@ const broadcastNotification = async (req, res) => {
 
 const registerToken = async (req, res) => {
   try {
-    const { device_token } = req.body;
+    const { device_token, name, email, topic } = req.body;
+
+    if(!device_token || !name || !email || !topic) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
 
     let user = await DeviceTokens.findOne({ device_token: device_token });
     if (user) {
