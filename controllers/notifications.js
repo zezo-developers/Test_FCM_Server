@@ -4,7 +4,7 @@ import DeviceTokens from "../model/DeviceToken.js";
 const sendNotification = async (req, res) => {
   const { token, title, description, imgUrl } = req.body;
   try {
-    console.log(req.body)
+    console.log(req.body);
     const response = await admin.messaging().send({
       token: token,
       data: {
@@ -20,7 +20,7 @@ const sendNotification = async (req, res) => {
       response: response,
     });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json({
       success: false,
       message: "Error in sending notification" + error.message,
@@ -47,23 +47,61 @@ const broadcastNotification = async (req, res) => {
 
     const responses = [];
     console.log(`Total chunks: ${chunks.length}`);
+    // for (let i = 0; i < chunks.length; i++) {
+    //     const response = await admin.messaging().sendEachForMulticast({
+    //       tokens: [...chunks[i]],
+    //       data: {
+    //         title,
+    //         description,
+    //         imageUrl: imgUrl,
+    //       },
+    //     });
+    //     console.log({successCount: response.successCount, failureCount: response.failureCount})
+    //     responses.push(response);
+    //     setTimeout(() => {
+    //       console.log("waiting 1 second")
+    //     },1000)
+    //     // responses.push({successCount: response.successCount, failureCount: response.failureCount});
+    //     // console.log(chunk)
+
+    // }
+
     for (let i = 0; i < chunks.length; i++) {
-        const response = await admin.messaging().sendEachForMulticast({
-          tokens: [...chunks[i]],
-          data: {
-            title,
-            description,
-            imageUrl: imgUrl,
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: [...chunks[i]],
+        notification: {
+          title: title,
+          body: description || "",
+        },
+        data: {
+          title,
+          description,
+          imageUrl: imgUrl,
+        },
+        android: {
+          priority: "high",
+        },
+        apns: {
+          payload: {
+            aps: {
+              contentAvailable: true,
+              alert: {
+                title,
+                body: description || "",
+              },
+            },
           },
-        });
-        console.log({successCount: response.successCount, failureCount: response.failureCount})
-        responses.push(response);
-        setTimeout(() => {
-          console.log("waiting 1 second") 
-        },1000)
-        // responses.push({successCount: response.successCount, failureCount: response.failureCount});
-        // console.log(chunk)
-      
+        },
+      });
+
+      responses.push(response);
+      console.log({
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+      });
+
+      // Wait 1 second before next batch to avoid rate limit
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     res.status(200).json({
@@ -81,12 +119,11 @@ const broadcastNotification = async (req, res) => {
   }
 };
 
-
 const registerToken = async (req, res) => {
   try {
     const { device_token, name, email, topic } = req.body;
 
-    if(!device_token || !name || !email || !topic) {
+    if (!device_token || !name || !email || !topic) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -101,10 +138,15 @@ const registerToken = async (req, res) => {
       });
     }
 
-    user = new DeviceTokens({ device_token: device_token, name:name,email:email,topic:topic });
+    user = new DeviceTokens({
+      device_token: device_token,
+      name: name,
+      email: email,
+      topic: topic,
+    });
     await user.save();
     res.status(201).json({
-      success: true, 
+      success: true,
       message: "Token registered successfully",
     });
   } catch (error) {
@@ -116,4 +158,3 @@ const registerToken = async (req, res) => {
 };
 
 export default { sendNotification, broadcastNotification, registerToken };
-
