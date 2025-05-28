@@ -101,7 +101,7 @@ const registerToken = async (req, res) => {
       });
     }
 
-    user = new DeviceTokens({ device_token: device_token });
+    user = new DeviceTokens({ device_token: device_token, name:name,email:email,topic:topic });
     await user.save();
     res.status(201).json({
       success: true, 

@@ -6,6 +6,16 @@ const Device_TokensSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    name:{
+        type: String,
+    },
+    email:{
+        type:String,
+    },
+    topic: {
+        type: String,
+        required: true
+    }
 });
 
 const Device_Tokens = mongoose.model("Device_Tokens", Device_TokensSchema);
