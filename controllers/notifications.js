@@ -7,6 +7,11 @@ const sendNotification = async (req, res) => {
     console.log(req.body);
     const response = await admin.messaging().send({
       token: token,
+      notification: {
+          title: title,
+          body: description || "",
+          imageUrl: imgUrl,
+        },
       data: {
         title: title,
         description: description,
@@ -72,6 +77,7 @@ const broadcastNotification = async (req, res) => {
         notification: {
           title: title,
           body: description || "",
+          imageUrl: imgUrl,
         },
         data: {
           title,
@@ -145,6 +151,15 @@ const registerToken = async (req, res) => {
       topic: topic,
     });
     await user.save();
+
+    const response =  await admin.messaging().subscribeToTopic(device_token, "all");
+    if(!response){
+      return res.status(500).json({
+        success: false,
+        message: "Error in registering token",
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: "Token registered successfully",
@@ -157,4 +172,101 @@ const registerToken = async (req, res) => {
   }
 };
 
-export default { sendNotification, broadcastNotification, registerToken };
+
+export const subscribeAllToTopics = async (req, res) => {
+  try {
+    const allTokens = await DeviceTokens.find({});
+
+    if (!allTokens.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No device tokens found in the collection.",
+      });
+    }
+
+    // Group tokens by topic
+    const topicMap = new Map();
+
+    for (const doc of allTokens) {
+      const { device_token, topic } = doc;
+      if (!topicMap.has(topic)) {
+        topicMap.set(topic, []);
+      }
+      topicMap.get(topic).push(device_token);
+    }
+    console.log("this is all token", topicMap)
+    const results = [];
+
+    for (const [topic, tokens] of topicMap.entries()) {
+      try {
+        const response =  await admin.messaging().subscribeToTopic(tokens, topic);
+        results.push({
+          topic,
+          successCount: response.successCount,
+          failureCount: response.failureCount,
+        });
+      } catch (error) {
+        console.error(`Error subscribing to topic ${topic}:`, error);
+        results.push({
+          topic,
+          error: error.message,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Subscription process completed",
+      results,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to subscribe device tokens: " + error.message,
+    });
+  }
+};
+
+const sendNotificationToTopic = async (req, res) => {
+  try {
+    const { title, description, imgUrl, data, topic = "all" } = req.body;
+
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: "Title is required.",
+      });
+    }
+
+    const message = {
+      topic: topic,
+      notification: {
+          title: title,
+          body: description,
+          imageUrl: imgUrl,
+      },
+      data: {
+          title:title,
+          description: description,
+          imageUrl: imgUrl || "",
+      },
+      data: data || {}, // optional key-value data
+    };
+
+    const response = await admin.messaging().send(message);
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification sent successfully",
+      messageId: response,
+    });
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send notification: " + error.message,
+    });
+  }
+};
+export default { sendNotification, broadcastNotification, registerToken, subscribeAllToTopics, sendNotificationToTopic };
